@@ -5,10 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>脆弱性学習掲示板</title>
   <style>
+    /* === リセット・ベース === */
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #f5f5f5; color: #333; }
     .container { max-width: 800px; margin: 0 auto; padding: 20px; }
 
+    /* === ヘッダー: 赤背景で「学習用＝危険なアプリ」であることを視覚的に示す === */
     header {
       background: #e74c3c;
       color: white;
@@ -21,6 +23,7 @@
     header nav a { color: white; text-decoration: none; margin-left: 15px; }
     header nav a:hover { text-decoration: underline; }
 
+    /* === 警告バナー: 全ページ共通で表示 === */
     .warning-banner {
       background: #fff3cd;
       border: 1px solid #ffc107;
@@ -31,6 +34,7 @@
       font-size: 0.9em;
     }
 
+    /* === カード: 各セクションのコンテナ === */
     .card {
       background: white;
       border-radius: 8px;
@@ -41,6 +45,7 @@
 
     h2 { margin-bottom: 15px; color: #2c3e50; }
 
+    /* === フォーム要素 === */
     .form-group { margin-bottom: 15px; }
     .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
     .form-group input, .form-group textarea {
@@ -52,6 +57,7 @@
     }
     .form-group textarea { height: 80px; resize: vertical; }
 
+    /* === ボタン === */
     .btn {
       display: inline-block;
       padding: 10px 20px;
@@ -68,8 +74,10 @@
     .btn-danger:hover { background: #c0392b; }
     .btn-small { padding: 5px 10px; font-size: 0.85em; }
 
+    /* === エラーメッセージ === */
     .error { color: #e74c3c; margin-bottom: 10px; font-weight: bold; }
 
+    /* === 投稿カード === */
     .post {
       border-bottom: 1px solid #eee;
       padding: 15px 0;
@@ -82,6 +90,7 @@
   </style>
 </head>
 <body>
+  <!-- ヘッダー: ログイン状態に応じてナビゲーションリンクを切り替え -->
   <header>
     <h1>脆弱性学習掲示板</h1>
     <nav>
@@ -97,9 +106,12 @@
   </header>
 
   <div class="container">
+    <!-- 全ページ共通の警告: このアプリが学習用であることを明示 -->
     <div class="warning-banner">
       このアプリは脆弱性学習用です。本番環境では絶対に使用しないでください。
     </div>
+
+    <!-- 各ページの内容がここに挿入される（ERBのyield） -->
     <%= yield %>
   </div>
 </body>

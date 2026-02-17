@@ -1,17 +1,31 @@
+<%# ログイン画面
+  【第1回 学習対象: SQLインジェクション】
+
+  ポイント:
+  - パスワード欄が type="text" になっている（入力内容が見える）
+    → SQLインジェクションの攻撃文字列を確認しやすくするため
+  - テスト用アカウント情報を画面に表示している
+    → 正常ログインと攻撃の両方を試せるようにするため
+%>
+
 <div class="card">
   <h2>ログイン</h2>
 
+  <%# エラーメッセージ: 認証失敗時に表示 %>
   <% if @error %>
     <p class="error"><%= @error %></p>
   <% end %>
 
+  <%# POSTでapp.rbの post '/login' に送信される %>
   <form action="/login" method="post">
     <div class="form-group">
       <label for="username">ユーザー名</label>
+      <%# ★ SQLインジェクション攻撃時、ここに ' OR 1=1 -- を入力する %>
       <input type="text" name="username" id="username" placeholder="ユーザー名を入力">
     </div>
     <div class="form-group">
       <label for="password">パスワード</label>
+      <%# type="text" にしているのは攻撃文字列を見やすくするため（本来は type="password"） %>
       <input type="text" name="password" id="password" placeholder="パスワードを入力">
     </div>
     <button type="submit" class="btn">ログイン</button>
@@ -21,6 +35,7 @@
     アカウントがない場合は <a href="/register">ユーザー登録</a>
   </p>
 
+  <%# テスト用アカウント情報: 正常ログインの動作確認用 %>
   <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 4px; font-size: 0.9em;">
     <strong>テスト用アカウント:</strong><br>
     admin / password123<br>

@@ -1,6 +1,13 @@
+<%# ユーザー登録画面
+  新規ユーザーを作成する。
+  登録処理（app.rb の post '/register'）ではプレースホルダを使っているため、
+  SQLインジェクションは発生しない。ログイン画面との実装の違いに注目。
+%>
+
 <div class="card">
   <h2>ユーザー登録</h2>
 
+  <%# エラーメッセージ: バリデーション失敗 or ユーザー名重複時に表示 %>
   <% if @error %>
     <p class="error"><%= @error %></p>
   <% end %>
@@ -12,6 +19,7 @@
     </div>
     <div class="form-group">
       <label for="password">パスワード</label>
+      <%# 登録画面では type="password" で入力を隠す（攻撃対象ではないため） %>
       <input type="password" name="password" id="password" placeholder="パスワードを入力">
     </div>
     <button type="submit" class="btn">登録</button>

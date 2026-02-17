@@ -1,9 +1,15 @@
+<%# プロフィール画面
+  第4回でアイコンアップロード機能を追加し、
+  ディレクトリトラバーサル脆弱性を学習する予定。
+%>
+
 <div class="card">
   <h2>プロフィール</h2>
 
   <p><strong>ユーザー名:</strong> <%= @user['username'] %></p>
   <p><strong>登録日:</strong> <%= @user['created_at'] %></p>
 
+  <%# アイコン表示: icon_path が設定されていれば画像を表示 %>
   <% if @user['icon_path'] %>
     <p><strong>アイコン:</strong></p>
     <img src="/uploads/<%= @user['icon_path'] %>" alt="icon" style="max-width: 150px; border-radius: 8px;">

@@ -1,3 +1,12 @@
+<%# 掲示板 - 投稿一覧画面
+  【学習ポイント】
+  - 投稿内容（post['body']）を <%= ... %> でそのまま出力している
+    → 第2回でXSS攻撃の対象となる（<script>タグが実行される）
+  - 削除フォームにCSRFトークンがない
+    → 第3回でCSRF攻撃の対象となる
+%>
+
+<%# === 新規投稿フォーム === %>
 <div class="card">
   <h2>新しい投稿</h2>
   <form action="/posts" method="post">
@@ -8,6 +17,7 @@
   </form>
 </div>
 
+<%# === 投稿一覧 === %>
 <div class="card">
   <h2>投稿一覧</h2>
 
@@ -21,8 +31,11 @@
         <span class="post-username"><%= post['username'] %></span>
         <span class="post-date"><%= post['created_at'] %></span>
       </div>
+      <%# ★ 投稿本文をエスケープせずに出力 → XSS脆弱性（第2回で学習） %>
       <div class="post-body"><%= post['body'] %></div>
+      <%# 自分の投稿のみ削除ボタンを表示 %>
       <% if post['user_id'] == @user['id'] %>
+        <%# ★ CSRFトークンなしのフォーム → CSRF脆弱性（第3回で学習） %>
         <form action="/posts/<%= post['id'] %>/delete" method="post" style="margin-top: 8px;">
           <button type="submit" class="btn btn-danger btn-small">削除</button>
         </form>
