@@ -41,7 +41,7 @@ end
 # 本番では推測困難なランダム値を使うべきだが、学習用に固定値にしている。
 # =============================================================================
 enable :sessions
-set :session_secret, 'super_secret_key_for_learning'
+set :session_secret, 'this_is_a_super_secret_key_for_learning_vulnerable_board_app_2024!'
 
 # =============================================================================
 # ヘルパーメソッド
