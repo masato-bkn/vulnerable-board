@@ -1,0 +1,10 @@
+# SQLiteデータベース
+db/*.db
+
+# Bundler
+.bundle/
+vendor/bundle/
+
+# アップロードファイル（.gitkeepは除く）
+public/uploads/*
+!public/uploads/.gitkeep
