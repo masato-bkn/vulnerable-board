@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>脆弱性学習掲示板</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #f5f5f5; color: #333; }
+    .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+
+    header {
+      background: #e74c3c;
+      color: white;
+      padding: 15px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    header h1 { font-size: 1.2em; }
+    header nav a { color: white; text-decoration: none; margin-left: 15px; }
+    header nav a:hover { text-decoration: underline; }
+
+    .warning-banner {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      color: #856404;
+      padding: 10px 15px;
+      margin: 15px 0;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    .card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      padding: 25px;
+      margin: 20px 0;
+    }
+
+    h2 { margin-bottom: 15px; color: #2c3e50; }
+
+    .form-group { margin-bottom: 15px; }
+    .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+    .form-group input, .form-group textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 1em;
+    }
+    .form-group textarea { height: 80px; resize: vertical; }
+
+    .btn {
+      display: inline-block;
+      padding: 10px 20px;
+      background: #3498db;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1em;
+      text-decoration: none;
+    }
+    .btn:hover { background: #2980b9; }
+    .btn-danger { background: #e74c3c; }
+    .btn-danger:hover { background: #c0392b; }
+    .btn-small { padding: 5px 10px; font-size: 0.85em; }
+
+    .error { color: #e74c3c; margin-bottom: 10px; font-weight: bold; }
+
+    .post {
+      border-bottom: 1px solid #eee;
+      padding: 15px 0;
+    }
+    .post:last-child { border-bottom: none; }
+    .post-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .post-username { font-weight: bold; color: #2c3e50; }
+    .post-date { color: #999; font-size: 0.85em; }
+    .post-body { line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>脆弱性学習掲示板</h1>
+    <nav>
+      <% if logged_in? %>
+        <a href="/posts">掲示板</a>
+        <a href="/profile">プロフィール</a>
+        <a href="/logout">ログアウト</a>
+      <% else %>
+        <a href="/login">ログイン</a>
+        <a href="/register">ユーザー登録</a>
+      <% end %>
+    </nav>
+  </header>
+
+  <div class="container">
+    <div class="warning-banner">
+      このアプリは脆弱性学習用です。本番環境では絶対に使用しないでください。
+    </div>
+    <%= yield %>
+  </div>
+</body>
+</html>

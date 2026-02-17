@@ -1,0 +1,29 @@
+<div class="card">
+  <h2>ログイン</h2>
+
+  <% if @error %>
+    <p class="error"><%= @error %></p>
+  <% end %>
+
+  <form action="/login" method="post">
+    <div class="form-group">
+      <label for="username">ユーザー名</label>
+      <input type="text" name="username" id="username" placeholder="ユーザー名を入力">
+    </div>
+    <div class="form-group">
+      <label for="password">パスワード</label>
+      <input type="text" name="password" id="password" placeholder="パスワードを入力">
+    </div>
+    <button type="submit" class="btn">ログイン</button>
+  </form>
+
+  <p style="margin-top: 15px;">
+    アカウントがない場合は <a href="/register">ユーザー登録</a>
+  </p>
+
+  <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 4px; font-size: 0.9em;">
+    <strong>テスト用アカウント:</strong><br>
+    admin / password123<br>
+    alice / alice456
+  </div>
+</div>
