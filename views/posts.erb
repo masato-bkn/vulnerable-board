@@ -69,6 +69,12 @@
 %>
 
 <%# === 新規投稿フォーム === %>
+<%#
+  ※ この投稿フォームにもCSRFトークンがない。
+  今回の学習では削除フォームをCSRF攻撃の対象としているが、
+  実際には投稿・更新・削除などすべての状態変更フォームにCSRFトークンが必要。
+  罠サイトから勝手に投稿させられる攻撃も成立しうる。
+%>
 <div class="card">
   <h2>新しい投稿</h2>
   <form action="/posts" method="post">
@@ -102,8 +108,36 @@
       <div class="post-body"><%= post['body'] %></div>
       <%# 自分の投稿のみ削除ボタンを表示 %>
       <% if post['user_id'] == @user['id'] %>
-        <%# ★ CSRFトークンなしのフォーム → CSRF脆弱性（第3回で学習） %>
+        <%#
+          ★★★ 脆弱なコード ★★★
+          【第3回 学習対象: CSRF（クロスサイトリクエストフォージェリ）】
+
+          このフォームにはCSRFトークン（hidden フィールド）がない！
+          そのため、外部の罠サイト（csrf_trap.html）からこのエンドポイントに
+          POSTリクエストを送ることで、ログイン中ユーザーの投稿を削除できてしまう。
+
+          ■ なぜ危険か:
+            ブラウザは送信先ドメインのCookieを自動付与するため、
+            罠サイトからのリクエストにもセッションCookieが付く。
+            サーバーは正規のリクエストと区別できない。
+
+          ■ 防御方法:
+            CSRFトークンをhiddenフィールドに追加し、サーバーで検証する。
+
+            安全なフォーム:
+              <form action="/posts/投稿ID/delete" method="post">
+                <input type="hidden" name="csrf_token" value="セッションに保存したトークン">
+                <button type="submit">削除</button>
+              </form>
+
+            罠サイトはトークンの値を知ることができないため、攻撃が失敗する。
+        %>
         <form action="/posts/<%= post['id'] %>/delete" method="post" style="margin-top: 8px;">
+          <%# ★ CSRFトークンの hidden フィールドがない = 脆弱
+            ブラウザの開発者ツール（F12）→ Networkタブで削除リクエストを確認すると、
+            フォームデータにCSRFトークンが含まれていないことが分かる。
+            罠ページ（csrf_trap.html）から全く同じリクエストを送れてしまう。
+          %>
           <button type="submit" class="btn btn-danger btn-small">削除</button>
         </form>
       <% end %>
