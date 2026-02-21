@@ -1,6 +1,11 @@
-<%# プロフィール画面
-  第4回でアイコンアップロード機能を追加し、
-  ディレクトリトラバーサル脆弱性を学習する予定。
+<%# プロフィール画面 — 第4回: ディレクトリトラバーサル学習用
+  アップロードフォームを追加。
+  ファイル名を検証しないことで ../../views/posts.erb のような
+  パスを持つファイル名でサーバーの任意ファイルを上書きできる。
+
+  【注意】
+  accept="image/*" はUIヒントに過ぎず、ブラウザが強制するだけ。
+  curl を使えば任意のファイル（.erb など）を送信できる。
 %>
 
 <div class="card">
@@ -12,8 +17,30 @@
   <%# アイコン表示: icon_path が設定されていれば画像を表示 %>
   <% if @user['icon_path'] %>
     <p><strong>アイコン:</strong></p>
-    <img src="/uploads/<%= @user['icon_path'] %>" alt="icon" style="max-width: 150px; border-radius: 8px;">
+    <%# onerror で壊れた画像（.erb など画像でないファイル）を非表示にする %>
+    <img src="/uploads/<%= @user['icon_path'] %>" alt="icon"
+         style="max-width: 150px; border-radius: 8px;"
+         onerror="this.style.display='none'">
+    <p style="color: #666; font-size: 0.85em;">保存パス: public/uploads/<%= @user['icon_path'] %></p>
   <% else %>
-    <p style="color: #999;">アイコンは未設定です（第4回で実装予定）</p>
+    <p style="color: #999;">アイコンは未設定です</p>
   <% end %>
+
+  <hr>
+
+  <h3>アイコンをアップロード</h3>
+  <%# enctype="multipart/form-data" がないとファイルデータが送信されない %>
+  <form action="/profile/upload" method="post" enctype="multipart/form-data">
+    <input type="file" name="file" accept="image/*">
+    <button type="submit">アップロード</button>
+  </form>
+
+  <div style="margin-top: 1.5em; padding: 1em; background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px;">
+    <strong>学習ヒント（第4回: ディレクトリトラバーサル）</strong><br>
+    <code>../../views/posts.erb</code> というファイル名でアップロードすると、<br>
+    <code>views/posts.erb</code>（投稿一覧テンプレート）が上書きされます。<br>
+    <br>
+    ブラウザは <code>accept="image/*"</code> でファイル選択を制限しますが、<br>
+    curl を使えば任意のファイルを任意のファイル名で送信できます。
+  </div>
 </div>

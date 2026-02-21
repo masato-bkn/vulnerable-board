@@ -373,3 +373,53 @@ get '/profile' do
   @user = current_user
   erb :profile
 end
+
+# =============================================================================
+# ルーティング: アイコンアップロード
+#
+# 【第4回 学習対象: ディレクトリトラバーサル】
+#
+# 脆弱な理由:
+#   params[:file][:filename] をそのままパスに使っており、
+#   ../../views/posts.erb のようなパス成分を含むファイル名を
+#   検証も除去もしていない。
+#   結果として upload_dir 外の任意のファイルを上書きできる。
+#
+# 防御方法:
+#   1. File.basename でパス成分を除去する:
+#      filename = File.basename(params[:file][:filename])
+#
+#   2. SecureRandom.hex でランダムなファイル名を生成する（推奨）:
+#      ext = File.extname(params[:file][:filename])
+#      filename = SecureRandom.hex(16) + ext
+#
+#   3. Pathname#cleanpath で保存先ディレクトリ外を拒否する:
+#      save_path = File.expand_path(filename, upload_dir)
+#      halt 400, '不正なファイル名です' unless save_path.start_with?(upload_dir)
+# =============================================================================
+
+post '/profile/upload' do
+  redirect '/login' unless logged_in?
+
+  uploaded = params[:file]
+  return redirect('/profile') if uploaded.nil?
+
+  # ★★★ 脆弱なコード ★★★
+  # ファイル名をそのままパスに使っている。
+  # ../../views/posts.erb のようなファイル名を渡すと
+  # upload_dir 外のファイルを上書きできてしまう。
+  filename = uploaded[:filename]
+  upload_dir = File.join(__dir__, 'public', 'uploads')
+  save_path = File.join(upload_dir, filename)
+
+  puts "[DEBUG] filename : #{filename}"
+  puts "[DEBUG] save_path: #{save_path}"
+
+  # ディレクトリ外チェックなし — 任意のパスに書き込まれる
+  File.write(save_path, uploaded[:tempfile].read)
+
+  # DB の icon_path を更新（通常のアップロード時に表示するため）
+  db.execute("UPDATE users SET icon_path = ? WHERE id = ?", [filename, session[:user_id]])
+
+  redirect '/profile'
+end

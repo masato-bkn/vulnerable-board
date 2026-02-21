@@ -45,7 +45,7 @@ http://localhost:4567 にアクセス。
 | 1 | ログイン | SQLインジェクション | `' OR 1=1 --` でログイン突破 | 実装済み |
 | 2 | 投稿表示 | XSS | `<script>alert('XSS')</script>` を投稿 | 実装済み |
 | 3 | 投稿削除 | CSRF | 罠サイトから他人の投稿を削除 | 実装済み |
-| 4 | アイコンアップロード | ディレクトリトラバーサル | `../../etc/passwd` 的なファイル名 | 未実装 |
+| 4 | アイコンアップロード | ディレクトリトラバーサル | `../../etc/passwd` 的なファイル名 | 実装済み |
 | 5 | セッション管理 | 認証の不備 | 推測可能なセッションID | 未実装 |
 
 ## 第1回: SQLインジェクション
@@ -245,6 +245,86 @@ end
 ```
 
 罠サイトは被害者のセッションに保存されたトークンの値を知ることができないため、正しいトークンを含むリクエストを送ることができず、攻撃が失敗する。
+
+## 第4回: ディレクトリトラバーサル
+
+### 脆弱な箇所
+
+`app.rb` のアイコンアップロード処理（`post '/profile/upload'`）で、アップロードされたファイルのファイル名を検証せずにそのままパスに使っている。
+
+```ruby
+# 脆弱なコード
+filename = uploaded[:filename]              # ../../views/posts.erb が来てもそのまま使う
+upload_dir = File.join(__dir__, 'public', 'uploads')
+save_path = File.join(upload_dir, filename) # upload_dir 外のパスが生成される
+
+File.write(save_path, uploaded[:tempfile].read)  # 任意ファイルを上書き
+```
+
+### 攻撃してみる
+
+**攻撃用ERBファイルを作成する:**
+
+```erb
+<%# 攻撃者が用意した偽の posts.erb %>
+<h1 style="color: red; text-align: center;">このサイトは改ざんされました</h1>
+<p>ディレクトリトラバーサル攻撃により views/posts.erb が上書きされました。</p>
+```
+
+**curl で `../../views/posts.erb` というファイル名で送信する:**
+
+```bash
+# まず管理者でログインしてセッションCookieを取得
+curl -c cookie.txt -d "username=admin&password=password123" http://localhost:4567/login
+
+# ../../views/posts.erb というファイル名でERBファイルを送信
+curl -b cookie.txt \
+  -F "file=@attack.erb;filename=../../views/posts.erb" \
+  http://localhost:4567/profile/upload
+```
+
+送信後に http://localhost:4567/posts を開くと、投稿一覧テンプレートが改ざんされた画面が表示される。
+
+**復元する:**
+
+```bash
+git checkout -- views/posts.erb
+```
+
+### 仕組み（なぜ成功するか）
+
+```
+upload_dir = /path/to/app/public/uploads/
+
+ファイル名: ../../views/posts.erb
+
+パス計算:
+  public/uploads/ + ../../views/posts.erb
+  = public/uploads/../../views/posts.erb
+  = views/posts.erb        ← upload_dir 外に出る！
+
+結果: /path/to/app/views/posts.erb が上書きされる
+```
+
+サーバーはアップロードされたファイルを `public/uploads/` に保存するつもりだったが、`../` によって親ディレクトリに遡り、`views/` ディレクトリのファイルを上書きしてしまう。
+
+### 防御方法
+
+```ruby
+# 方法1: File.basename でパス成分を除去する
+filename = File.basename(params[:file][:filename])
+# ../../views/posts.erb → posts.erb（../ が除去される）
+
+# 方法2: SecureRandom.hex でランダムなファイル名を生成する（推奨）
+ext = File.extname(params[:file][:filename])
+filename = SecureRandom.hex(16) + ext
+# 攻撃者がファイル名を制御できなくなる
+
+# 方法3: Pathname#cleanpath で保存先ディレクトリ外を拒否する
+save_path = File.expand_path(filename, upload_dir)
+halt 400, '不正なファイル名です' unless save_path.start_with?(upload_dir)
+# upload_dir の外へのパスは 400 エラーで拒否する
+```
 
 ## ディレクトリ構成
 
