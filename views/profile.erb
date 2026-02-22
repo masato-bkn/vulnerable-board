@@ -31,7 +31,8 @@
   <h3>アイコンをアップロード</h3>
   <%# enctype="multipart/form-data" がないとファイルデータが送信されない %>
   <form action="/profile/upload" method="post" enctype="multipart/form-data">
-    <input type="file" name="file" accept="image/*">
+    <input type="file" name="file">
+    <input type="text" name="filename" placeholder="ファイル名（攻撃時: ../../views/posts.erb）" style="width: 100%; margin: 0.5em 0;">
     <button type="submit">アップロード</button>
   </form>
 

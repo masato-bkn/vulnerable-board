@@ -271,19 +271,15 @@ File.write(save_path, uploaded[:tempfile].read)  # 任意ファイルを上書�
 <p>ディレクトリトラバーサル攻撃により views/posts.erb が上書きされました。</p>
 ```
 
-**curl で `../../views/posts.erb` というファイル名で送信する:**
+**ブラウザからアップロードする:**
 
-```bash
-# まず管理者でログインしてセッションCookieを取得
-curl -c cookie.txt -d "username=admin&password=password123" http://localhost:4567/login
+1. http://localhost:4567/profile にアクセス
+2. ファイル選択で `attack.erb` を選ぶ
+3. テキストフィールドに `../../views/posts.erb` と入力
+4. アップロードボタンを押す
+5. http://localhost:4567/posts を開くと、投稿一覧テンプレートが改ざんされた画面が表示される
 
-# ../../views/posts.erb というファイル名でERBファイルを送信
-curl -b cookie.txt \
-  -F "file=@attack.erb;filename=../../views/posts.erb" \
-  http://localhost:4567/profile/upload
-```
-
-送信後に http://localhost:4567/posts を開くと、投稿一覧テンプレートが改ざんされた画面が表示される。
+> **補足**: curl の `-F` オプションはセキュリティ上の理由でファイル名のパス成分を自動除去するため、ブラウザのフォームから攻撃する。テキストフィールドで別途ファイル名を受け取ることで Rack の sanitize も回避している。
 
 **復元する:**
 

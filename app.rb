@@ -13,6 +13,7 @@
 # =============================================================================
 
 require 'sinatra'
+require 'fileutils'
 require 'sinatra/reloader' if development?
 require 'sqlite3'
 require 'securerandom'
@@ -408,7 +409,9 @@ post '/profile/upload' do
   # ファイル名をそのままパスに使っている。
   # ../../views/posts.erb のようなファイル名を渡すと
   # upload_dir 外のファイルを上書きできてしまう。
-  filename = uploaded[:filename]
+  # ファイル名はテキストフィールドから取得する（Rackが[:filename]を自動でbasenameするため）
+  # ★★★ 脆弱なコード ★★★ テキストフィールドの値を無検証でそのまま使う
+  filename = params[:filename].nil? || params[:filename].empty? ? uploaded[:filename] : params[:filename]
   upload_dir = File.join(__dir__, 'public', 'uploads')
   save_path = File.join(upload_dir, filename)
 
@@ -416,6 +419,7 @@ post '/profile/upload' do
   puts "[DEBUG] save_path: #{save_path}"
 
   # ディレクトリ外チェックなし — 任意のパスに書き込まれる
+  FileUtils.mkdir_p(File.dirname(save_path))
   File.write(save_path, uploaded[:tempfile].read)
 
   # DB の icon_path を更新（通常のアップロード時に表示するため）
