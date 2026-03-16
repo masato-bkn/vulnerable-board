@@ -8,8 +8,8 @@
 #   第1回: SQLインジェクション（ログイン処理）
 #   第2回: XSS（投稿表示）
 #   第3回: CSRF（投稿削除）
-#   第4回: ディレクトリトラバーサル（アイコンアップロード）  ※未実装
-#   第5回: 認証の不備（セッション管理）  ※未実装
+#   第4回: ディレクトリトラバーサル（アイコンアップロード）
+#   第5回: 認証の不備（Remember meトークンの予測可能性）
 # =============================================================================
 
 require 'sinatra'
@@ -17,6 +17,7 @@ require 'fileutils'
 require 'sinatra/reloader' if development?
 require 'sqlite3'
 require 'securerandom'
+require 'digest'
 
 # =============================================================================
 # データベース設定
@@ -59,10 +60,20 @@ set :session_secret, 'this_is_a_super_secret_key_for_learning_vulnerable_board_a
 helpers do
   # セッションに保存されたuser_idからユーザー情報を取得
   # ログインしていなければnilを返す
-  # ※ プレースホルダ（?）を使った安全なクエリ
+  #
+  # 【第5回との関連: 認証の不備】
+  # セッションCookieによる認証に加えて、remember_tokenによる認証も行う。
+  # remember_tokenはMD5(username)で生成しており、予測可能なため脆弱。
   def current_user
-    return nil unless session[:user_id]
-    db.execute("SELECT * FROM users WHERE id = ?", session[:user_id]).first
+    if session[:user_id]
+      db.execute("SELECT * FROM users WHERE id = ?", session[:user_id]).first
+    elsif (token = request.cookies['remember_token'])
+      # ★★★ 脆弱なコード ★★★
+      # remember_token は MD5(username) で生成されている。
+      # 攻撃者が username を知っていれば（投稿一覧で確認可能）、
+      # 同じ計算をしてトークンを偽造できる。
+      db.execute("SELECT * FROM users WHERE remember_token = ?", token).first
+    end
   end
 
   # ログイン状態を判定
@@ -161,6 +172,39 @@ end
 #   → そんなユーザー名は存在しない → ログイン失敗 → 攻撃が防がれる
 # =============================================================================
 
+# =============================================================================
+# ルーティング: ログイン
+#
+# 【第1回 学習対象: SQLインジェクション】（詳細は post '/login' のコメント参照）
+#
+# 【第5回 学習対象: 認証の不備（Remember me機能）】
+#
+# 脆弱な理由:
+#   "ログイン状態を保存する" チェック時に生成する remember_token が
+#   Digest::MD5.hexdigest(username) という決定論的な値であり、
+#   ユーザー名さえ知っていれば誰でも同じ値を計算できる。
+#
+# 攻撃の前提:
+#   掲示板の投稿一覧ページには投稿者のusernameが表示されている。
+#   → 攻撃者は username を知ることができる（例: "admin"）
+#
+# 攻撃手順:
+#   1. 投稿一覧で "admin" が投稿していることを確認
+#   2. irb で MD5 を計算:
+#      require 'digest'; Digest::MD5.hexdigest('admin')
+#      → "21232f297a57a5a743894a0e4a801fc3"
+#   3. ブラウザの開発者ツールでCookieを設定:
+#      document.cookie = "remember_token=21232f297a57a5a743894a0e4a801fc3; path=/"
+#   4. http://localhost:4567/posts にアクセス
+#   5. ログインしていないのに admin としてアクセスできてしまう
+#
+# 防御方法:
+#   SecureRandom.hex(32) のような暗号論的乱数を使い、
+#   入力値から推測不可能なトークンを生成する:
+#     token = SecureRandom.hex(32)
+#     db.execute("UPDATE users SET remember_token = ? WHERE id = ?", [token, user['id']])
+# =============================================================================
+
 # ログインフォーム表示
 get '/login' do
   @error = nil
@@ -183,6 +227,35 @@ post '/login' do
   if user
     # 認証成功: セッションにユーザーIDを保存してログイン状態にする
     session[:user_id] = user['id']
+
+    # ==========================================================================
+    # 【第5回 学習対象: 認証の不備】
+    #
+    # ★★★ 脆弱なコード ★★★
+    # "ログイン状態を保存する" チェック時に、MD5(username) をトークンとして
+    # DBとCookieの両方に保存する。
+    #
+    # なぜ脆弱か:
+    #   MD5 はハッシュ関数であり、同じ入力からは常に同じ出力が得られる。
+    #   username は掲示板の投稿一覧で誰でも確認できる。
+    #   → 攻撃者が username を知っていれば、同じトークンを計算して
+    #     Cookie を偽造し、パスワードなしでログインできる。
+    #
+    # 安全なトークン生成:
+    #   SecureRandom.hex(32) のような暗号論的に安全な乱数を使い、
+    #   入力値から推測できないトークンを生成すべき。
+    # ==========================================================================
+    if params[:remember_me] == '1'
+      token = Digest::MD5.hexdigest(username)
+      puts "[DEBUG] remember_token: MD5('#{username}') = #{token}"
+      db.execute("UPDATE users SET remember_token = ? WHERE id = ?", [token, user['id']])
+      response.set_cookie('remember_token', {
+        value: token,
+        path: '/',
+        expires: Time.now + (30 * 24 * 60 * 60)  # 30日間
+      })
+    end
+
     redirect '/posts'
   else
     @error = 'ユーザー名またはパスワードが間違っています'
@@ -196,6 +269,11 @@ end
 
 # セッションを全クリアしてログイン画面へ
 get '/logout' do
+  # remember_token Cookie も削除する
+  response.delete_cookie('remember_token', path: '/')
+  if session[:user_id]
+    db.execute("UPDATE users SET remember_token = NULL WHERE id = ?", session[:user_id])
+  end
   session.clear
   redirect '/login'
 end

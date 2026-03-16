@@ -1,11 +1,14 @@
 <%# ログイン画面
   【第1回 学習対象: SQLインジェクション】
+  【第5回 学習対象: 認証の不備（Remember me）】
 
   ポイント:
   - パスワード欄が type="text" になっている（入力内容が見える）
     → SQLインジェクションの攻撃文字列を確認しやすくするため
   - テスト用アカウント情報を画面に表示している
     → 正常ログインと攻撃の両方を試せるようにするため
+  - "ログイン状態を保存する" チェックボックスを追加（第5回で使用）
+    → チェックすると MD5(username) のトークンがCookieに保存される（脆弱）
 %>
 
 <div class="card">
@@ -28,6 +31,15 @@
       <%# type="text" にしているのは攻撃文字列を見やすくするため（本来は type="password"） %>
       <input type="text" name="password" id="password" placeholder="パスワードを入力">
     </div>
+    <%# ★★★ 第5回 脆弱なコード ★★★
+        チェックするとMD5(username)がremember_tokenとしてCookieに保存される。
+        MD5は決定論的なので、usernameを知っていれば誰でもトークンを計算できる。 %>
+    <div class="form-group" style="margin-top: 0.5em;">
+      <label style="font-weight: normal; display: flex; align-items: center; gap: 0.5em; cursor: pointer;">
+        <input type="checkbox" name="remember_me" value="1">
+        ログイン状態を保存する（30日間）
+      </label>
+    </div>
     <button type="submit" class="btn">ログイン</button>
   </form>
 
@@ -40,5 +52,25 @@
     <strong>テスト用アカウント:</strong><br>
     admin / password123<br>
     alice / alice456
+  </div>
+
+  <%# 第5回: 認証の不備 攻撃ヒント %>
+  <div style="margin-top: 1em; padding: 1em; background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; font-size: 0.9em;">
+    <strong>学習ヒント（第5回: 認証の不備）</strong><br>
+    <ol style="margin: 0.5em 0 0 1.2em; line-height: 1.8;">
+      <li><strong>alice</strong> でログインし、「ログイン状態を保存する」をチェック</li>
+      <li>ログアウトし、開発者ツール → Application → Cookies で <code>remember_token</code> を確認</li>
+      <li>ターミナルで <strong>admin</strong> のトークンを計算:
+        <code style="display:block; background:#eee; padding:4px 8px; margin:4px 0; border-radius:3px;">
+          ruby -e "require 'digest'; puts Digest::MD5.hexdigest('admin')"
+        </code>
+      </li>
+      <li>開発者ツール → Console で Cookie を書き換え:
+        <code style="display:block; background:#eee; padding:4px 8px; margin:4px 0; border-radius:3px;">
+          document.cookie = "remember_token=21232f297a57a5a743894a0e4a801fc3; path=/"
+        </code>
+      </li>
+      <li><a href="/posts">/posts</a> にアクセス → <strong>パスワードなしで admin としてログイン</strong></li>
+    </ol>
   </div>
 </div>

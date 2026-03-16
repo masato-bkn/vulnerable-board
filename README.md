@@ -46,7 +46,7 @@ http://localhost:4567 にアクセス。
 | 2 | 投稿表示 | XSS | `<script>alert('XSS')</script>` を投稿 | 実装済み |
 | 3 | 投稿削除 | CSRF | 罠サイトから他人の投稿を削除 | 実装済み |
 | 4 | アイコンアップロード | ディレクトリトラバーサル | `../../etc/passwd` 的なファイル名 | 実装済み |
-| 5 | セッション管理 | 認証の不備 | 推測可能なセッションID | 未実装 |
+| 5 | Remember me | 認証の不備 | MD5(username) を計算してCookieを偽造 | 実装済み |
 
 ## 第1回: SQLインジェクション
 
@@ -321,6 +321,70 @@ save_path = File.expand_path(filename, upload_dir)
 halt 400, '不正なファイル名です' unless save_path.start_with?(upload_dir)
 # upload_dir の外へのパスは 400 エラーで拒否する
 ```
+
+## 第5回: 認証の不備（Remember meトークンの予測可能性）
+
+### 脆弱な箇所
+
+`app.rb` のログイン処理で、"ログイン状態を保存する" チェック時に `Digest::MD5.hexdigest(username)` をトークンとして生成している。
+
+```ruby
+# 脆弱なコード
+token = Digest::MD5.hexdigest(username)
+# MD5 は決定論的: 同じ入力 → 常に同じ出力
+# "admin" → "21232f297a57a5a743894a0e4a801fc3" （いつでも同じ）
+```
+
+### 攻撃してみる
+
+1. http://localhost:4567/login で **alice** としてログイン（「ログイン状態を保存する」をチェック）
+2. ログアウトする
+3. ターミナルで **admin** のトークンを計算:
+   ```bash
+   ruby -e "require 'digest'; puts Digest::MD5.hexdigest('admin')"
+   # → 21232f297a57a5a743894a0e4a801fc3
+   ```
+4. ブラウザの開発者ツール（Console）でCookieを偽造:
+   ```javascript
+   document.cookie = "remember_token=21232f297a57a5a743894a0e4a801fc3; path=/"
+   ```
+5. http://localhost:4567/posts にアクセス → **パスワードなしで admin としてログインできてしまう**
+
+### 仕組み（なぜ成功するか）
+
+```
+■ 前提: username は投稿一覧で誰でも見える
+
+攻撃者が知っていること:
+  - username = "admin"（投稿一覧から確認）
+  - トークン生成アルゴリズム = MD5(username)（コードや挙動から推測）
+
+攻撃者が計算できること:
+  - Digest::MD5.hexdigest("admin") = "21232f297a57a5a743894a0e4a801fc3"
+
+サーバーの動作:
+  - Cookie の remember_token を受け取る
+  - DBで一致するユーザーを検索 → admin が見つかる → ログイン成功
+```
+
+問題の本質: トークンが **決定論的**（ランダム性がない）なため、アルゴリズムと入力が分かれば誰でも同じ値を生成できる。
+
+### 防御方法
+
+暗号論的に安全な乱数を使い、入力値から推測不可能なトークンを生成する:
+
+```ruby
+# 安全なコード
+token = SecureRandom.hex(32)
+# → "a3f8c2e1..." のような毎回異なる256ビットのランダム値
+# username を知っていても計算できない
+```
+
+| | 脆弱（MD5） | 安全（SecureRandom） |
+|--|------------|---------------------|
+| 入力 | username（公開情報） | なし（純粋な乱数） |
+| 出力 | 常に同じ値 | 毎回異なる値 |
+| 予測可能か | ✅ 可能 | ❌ 不可能 |
 
 ## ディレクトリ構成
 

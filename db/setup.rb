@@ -31,9 +31,17 @@ def setup_database
       username TEXT UNIQUE NOT NULL,
       password TEXT NOT NULL,
       icon_path TEXT DEFAULT NULL,
+      remember_token TEXT DEFAULT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   SQL
+
+  # 既存DBへの対応: remember_token列がなければ追加
+  begin
+    db.execute("ALTER TABLE users ADD COLUMN remember_token TEXT DEFAULT NULL")
+  rescue SQLite3::Exception
+    # 既に存在する場合はスキップ
+  end
 
   # ---------------------------------------------------------------------------
   # postsテーブル
